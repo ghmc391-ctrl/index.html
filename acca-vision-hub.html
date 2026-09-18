@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ACCA Vision Hub</title>
+<style>
+  :root{
+    --bg:#FBF8FF; --card-bg:#FFFFFF; --board-bg:#F3EEFC;
+    --ink:#3A3145; --ink-muted:#8A8194; --border:#EAE2F7;
+    --thread:#E8555A;
+    --tab-idle:#F3EEFC; --tab-active:#FFFFFF;
+    --pink:#FFD9E6; --pink-ink:#C15D77;
+    --yellow:#FFF0C2; --yellow-ink:#B8862B;
+    --green:#D9F3E3; --green-ink:#399068;
+    --blue:#DCEBFF; --blue-ink:#4778B8;
+    --lav:#E9DFFF; --lav-ink:#7E63C9;
+    --shadow:0 6px 16px rgba(120,100,150,0.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#221E29; --card-bg:#2B2635; --board-bg:#2F2A3B;
+      --ink:#F1ECFB; --ink-muted:#B0A6C4; --border:#3B3448;
+      --tab-idle:#2F2A3B; --tab-active:#3A3348;
+      --shadow:0 6px 16px rgba(0,0,0,0.3);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#221E29; --card-bg:#2B2635; --board-bg:#2F2A3B;
+    --ink:#F1ECFB; --ink-muted:#B0A6C4; --border:#3B3448;
+    --tab-idle:#2F2A3B; --tab-active:#3A3348;
+    --shadow:0 6px 16px rgba(0,0,0,0.3);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:16px; display:flex; flex-direction:column; gap:16px; min-height:100vh;
+  }
+
+  .masthead h1{font-size:1.45rem; margin:0 0 2px; font-weight:800; letter-spacing:-0.01em;}
+  .masthead h1 em{font-style:normal; color:var(--thread);}
+  .masthead .sub{color:var(--ink-muted); font-size:0.82rem; margin-bottom:12px;}
+
+  .tabs{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch;}
+  .tab{
+    flex:0 0 auto; padding:9px 16px; border-radius:999px; border:1px solid var(--border);
+    background:var(--tab-idle); color:var(--ink-muted); font-weight:700; font-size:0.82rem;
+    cursor:pointer; white-space:nowrap; transition:background .15s,color .15s,transform .1s;
+  }
+  .tab.active{background:var(--tab-active); color:var(--ink); box-shadow:var(--shadow); transform:translateY(-1px);}
+  .tab .dot{display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px;}
+
+  .section{display:none;}
+  .section.active{display:block;}
+
+  .card{background:var(--card-bg); border:1px solid var(--border); border-radius:16px; padding:18px; box-shadow:var(--shadow); margin-bottom:16px;}
+  .card h3{margin:0 0 3px 0; font-size:1.02rem;}
+  .card .hint{color:var(--ink-muted); font-size:0.78rem; margin-bottom:14px;}
+
+  /* --- Vision board: big, scrollable canvas --- */
+  .board-outer{border-radius:16px; overflow:auto; border:1px solid var(--border); max-height:78vh;}
+  .board-wrap{position:relative; width:1600px; height:900px;
+    background-color:var(--board-bg);
+    background-image:radial-gradient(var(--border) 1.2px, transparent 1.2px);
+    background-size:24px 24px;
+  }
+  #thread-canvas{position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1;}
+  .node{
+    position:absolute; width:250px; padding:12px 14px 14px; background:var(--card-bg);
+    border:1px solid var(--border); border-radius:12px; cursor:grab; user-select:none; z-index:2;
+    box-shadow:var(--shadow); font-size:0.85rem;
+  }
+  .node:active{cursor:grabbing;}
+  .node .pin{width:14px; height:14px; border-radius:50%; position:absolute; top:-7px; left:calc(50% - 7px); box-shadow:0 2px 5px rgba(0,0,0,0.15);}
+  .node-top{display:flex; justify-content:space-between; align-items:flex-start; gap:4px;}
+  .node-tag{display:inline-block; font-size:0.63rem; font-weight:800; padding:2px 7px; border-radius:20px; margin-bottom:6px;}
+  .node-x{background:none; border:none; color:var(--ink-muted); font-size:0.9rem; padding:0 2px; cursor:pointer; line-height:1;}
+  .node-x:hover{color:var(--thread);}
+  .node-title{font-weight:800; margin:2px 0 4px; color:var(--ink); outline:none; border-radius:4px; padding:1px 2px;}
+  .node-content{color:var(--ink-muted); line-height:1.35; outline:none; border-radius:4px; padding:1px 2px; margin-bottom:8px;}
+  .node-label{font-size:0.62rem; font-weight:800; color:var(--ink-muted); text-transform:uppercase; letter-spacing:0.03em; margin:4px 0 2px;}
+  .node-evidence{background:var(--board-bg); border-radius:8px; padding:6px 8px; min-height:44px; color:var(--ink);
+    outline:none; line-height:1.4; font-size:0.8rem; white-space:pre-wrap;}
+  .node-title[contenteditable="true"]:focus, .node-content[contenteditable="true"]:focus, .node-evidence[contenteditable="true"]:focus{background:var(--board-bg); box-shadow:0 0 0 2px var(--lav) inset;}
+
+  .board-toolbar{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  .chip-btn{border:1px solid var(--border); background:var(--card-bg); color:var(--ink); border-radius:999px; padding:7px 13px; font-size:0.78rem; font-weight:700; cursor:pointer;}
+  .chip-btn.primary{background:var(--pink); color:var(--pink-ink); border-color:transparent;}
+  .chip-btn:hover{opacity:0.85;}
+
+  .board-legend{display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; font-size:0.75rem; color:var(--ink-muted);}
+  .board-legend span{display:inline-flex; align-items:center; gap:5px;}
+  .board-legend i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  /* --- Summary --- */
+  .summary-list{display:flex; flex-direction:column; gap:8px;}
+  .summary-item{background:var(--board-bg); border-radius:10px; padding:10px 12px; font-size:0.85rem; line-height:1.45; border-left:4px solid var(--thread);}
+  .summary-item b{color:var(--ink);}
+  .summary-item .ev{display:block; margin-top:4px; color:var(--ink); font-style:italic;}
+  .summary-stats{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .stat{background:var(--board-bg); border-radius:10px; padding:9px 14px; min-width:90px;}
+  .stat .n{font-size:1.25rem; font-weight:800;}
+  .stat .l{font-size:0.68rem; color:var(--ink-muted);}
+
+  /* --- Tracker --- */
+  table{width:100%; border-collapse:collapse; margin-top:6px;}
+  th,td{text-align:left; padding:10px 6px; border-bottom:1px solid var(--border); font-size:0.85rem; vertical-align:middle;}
+  th{color:var(--ink-muted); font-weight:700; font-size:0.7rem;}
+  .badge{padding:4px 10px; border-radius:20px; font-size:0.68rem; font-weight:800;}
+  tr.done td{opacity:0.4; text-decoration:line-through;}
+  .progress-bar{height:8px; border-radius:5px; background:var(--board-bg); overflow:hidden; margin-top:14px;}
+  .progress-fill{height:100%; background:linear-gradient(90deg,var(--pink),var(--lav)); width:0%; transition:width .3s ease;}
+  .progress-label{font-size:0.78rem; color:var(--ink-muted); margin-top:8px;}
+  .chap-inputs{display:flex; align-items:center; gap:4px; font-size:0.8rem;}
+  .chap-inputs input{width:42px; padding:5px 4px; text-align:center; border-radius:6px; border:1px solid var(--border); background:var(--board-bg); color:var(--ink); font-size:0.8rem;}
+  .mini-bar{height:6px; border-radius:4px; background:var(--board-bg); overflow:hidden; margin-top:5px; width:90px;}
+  .mini-fill{height:100%; background:var(--green);}
+
+  .hours-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;}
+  .hours-row input{padding:9px 10px; border-radius:10px; border:1px solid var(--border); background:var(--board-bg); color:var(--ink); font-size:0.85rem;}
+  .hours-row input[type="date"]{flex:1; min-width:140px;}
+  .hours-row input[type="number"]{width:90px;}
+  .hours-list{display:flex; flex-direction:column; gap:6px; margin-top:6px;}
+  .hours-item{display:flex; justify-content:space-between; align-items:center; background:var(--board-bg); border-radius:8px; padding:8px 12px; font-size:0.83rem;}
+  .hours-item b{color:var(--ink);}
+  .week-bars{display:flex; align-items:flex-end; gap:8px; height:90px; margin-top:14px; padding-top:10px; border-top:1px solid var(--border);}
+  .week-bar{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; justify-content:flex-end; height:100%;}
+  .week-bar .bar{width:100%; border-radius:5px 5px 0 0; background:var(--lav);}
+  .week-bar .lbl{font-size:0.62rem; color:var(--ink-muted);}
+
+  /* --- Inputs --- */
+  .input-group{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;}
+  input[type="text"]{flex:1; min-width:160px; background:var(--board-bg); border:1px solid var(--border); color:var(--ink); padding:10px 12px; border-radius:10px; font-size:0.85rem; outline:none;}
+  input[type="text"]:focus{border-color:var(--lav);}
+  button.action{background:var(--lav); color:var(--lav-ink); border:none; padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:800; font-size:0.85rem;}
+  button.action.pink{background:var(--pink); color:var(--pink-ink);}
+  button.action.green{background:var(--green); color:var(--green-ink);}
+  button.action:hover{opacity:0.85;}
+
+  .note-item,.reminder-item{background:var(--board-bg); border-radius:10px; padding:10px 12px; margin-bottom:8px; font-size:0.83rem; display:flex; align-items:flex-start; gap:8px;}
+  .note-item a{color:var(--blue-ink); text-decoration:none; word-break:break-all; font-weight:600;}
+  .note-item a:hover{text-decoration:underline;}
+  .del{margin-left:auto; background:none; border:none; color:var(--ink-muted); padding:0 4px; font-size:1rem; cursor:pointer;}
+  .del:hover{color:var(--thread);}
+  .empty{color:var(--ink-muted); font-size:0.8rem; font-style:italic;}
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <h1>ACCA <em>Vision Hub</em></h1>
+  <div class="sub">Tap a tab to open that section</div>
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-target="board"><span class="dot" style="background:var(--pink);"></span>Vision board</div>
+    <div class="tab" data-target="tracker"><span class="dot" style="background:var(--green);"></span>Tracker</div>
+    <div class="tab" data-target="notebook"><span class="dot" style="background:var(--blue);"></span>Notebook</div>
+    <div class="tab" data-target="reminders"><span class="dot" style="background:var(--yellow);"></span>Reminders</div>
+  </div>
+</div>
+
+<!-- VISION BOARD -->
+<div class="section active" id="section-board">
+  <div class="card">
+    <h3>Vision board</h3>
+    <div class="hint">Drag pins anywhere on the board. Tap the title, note, or "what I learned" area to edit it. Scroll the board if it runs off screen — it's sized like a full monitor.</div>
+    <div class="board-toolbar">
+      <button class="chip-btn primary" onclick="addNode()">+ Add pin</button>
+      <button class="chip-btn" onclick="resetPositions()">Reset layout</button>
+    </div>
+    <div class="board-outer">
+      <div class="board-wrap" id="board">
+        <canvas id="thread-canvas"></canvas>
+        <div id="nodes-layer"></div>
+      </div>
+    </div>
+    <div class="board-legend" id="board-legend"></div>
+  </div>
+
+  <div class="card">
+    <h3>Summarised notes</h3>
+    <div class="hint">Auto-built from every pin on the board above, including what you've researched.</div>
+    <div class="summary-list" id="summary-list"></div>
+    <div class="summary-stats" id="summary-stats"></div>
+  </div>
+</div>
+
+<!-- TRACKER -->
+<div class="section" id="section-tracker">
+  <div class="card">
+    <h3>Applied Skills tracker</h3>
+    <div class="hint">Tick off each paper, and log chapters completed as you go.</div>
+    <table>
+      <thead><tr><th></th><th>Paper</th><th>Term</th><th>Priority</th><th>Chapters</th></tr></thead>
+      <tbody id="syllabus-list">
+        <tr data-id="pm"><td><input type="checkbox" class="paper-check"></td><td>Performance Management (PM)</td><td>June / Sept 2026</td><td><span class="badge" style="background:var(--pink); color:var(--pink-ink);">Priority 1</span></td><td class="chap-cell" data-total="18"></td></tr>
+        <tr data-id="tx"><td><input type="checkbox" class="paper-check"></td><td>Taxation (TX)</td><td>December 2026</td><td><span class="badge" style="background:var(--yellow); color:var(--yellow-ink);">Priority 2</span></td><td class="chap-cell" data-total="20"></td></tr>
+        <tr data-id="fr"><td><input type="checkbox" class="paper-check"></td><td>Financial Reporting (FR)</td><td>March 2027</td><td><span class="badge" style="background:var(--green); color:var(--green-ink);">Priority 3</span></td><td class="chap-cell" data-total="15"></td></tr>
+        <tr data-id="aa"><td><input type="checkbox" class="paper-check"></td><td>Audit & Assurance (AA)</td><td>June 2027</td><td><span class="badge" style="background:var(--blue); color:var(--blue-ink);">Priority 4</span></td><td class="chap-cell" data-total="16"></td></tr>
+        <tr data-id="fm"><td><input type="checkbox" class="paper-check"></td><td>Financial Management (FM)</td><td>September 2027</td><td><span class="badge" style="background:var(--lav); color:var(--lav-ink);">Priority 5</span></td><td class="chap-cell" data-total="17"></td></tr>
+      </tbody>
+    </table>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label"></div>
+  </div>
+
+  <div class="card">
+    <h3>Study hours</h3>
+    <div class="hint">Log how long you studied each day.</div>
+    <div class="hours-row">
+      <input type="date" id="hours-date">
+      <input type="number" id="hours-input" placeholder="Hours" min="0" step="0.25">
+      <button class="action green" onclick="addHours()">Log</button>
+    </div>
+    <div class="summary-stats" id="hours-stats"></div>
+    <div class="week-bars" id="week-bars"></div>
+    <div class="hours-list" id="hours-list"></div>
+  </div>
+</div>
+
+<!-- NOTEBOOK -->
+<div class="section" id="section-notebook">
+  <div class="card">
+    <h3>Notebook & clips</h3>
+    <div class="hint">Save notes or paste a link — links become clickable.</div>
+    <div class="input-group">
+      <input type="text" id="note-input" placeholder="Note or URL...">
+      <button class="action" onclick="addNote()">Save</button>
+    </div>
+    <div id="notes-list"></div>
+  </div>
+</div>
+
+<!-- REMINDERS -->
+<div class="section" id="section-reminders">
+  <div class="card">
+    <h3>Quick reminders</h3>
+    <div class="hint">Study goals and tasks to keep an eye on.</div>
+    <div class="input-group">
+      <input type="text" id="reminder-input" placeholder="Study goal or reminder...">
+      <button class="action pink" onclick="addReminder()">Add</button>
+    </div>
+    <div id="reminders-list"></div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'acca-vision-hub-v3';
+  const TAGS = [
+    {name:'Now',      bg:'var(--pink)',   ink:'var(--pink-ink)',   pin:'#F2A8C1'},
+    {name:'Next',     bg:'var(--yellow)', ink:'var(--yellow-ink)', pin:'#F0CE79'},
+    {name:'Builds on',bg:'var(--green)',  ink:'var(--green-ink)',  pin:'#8FD6AE'},
+    {name:'Later',    bg:'var(--blue)',   ink:'var(--blue-ink)',   pin:'#8FBBEE'},
+    {name:'Milestone',bg:'var(--lav)',    ink:'var(--lav-ink)',    pin:'#B79CE8'}
+  ];
+
+  const defaultNodes = [
+    {id:'n1', tag:0, title:'Performance Mgmt (PM)', content:'Start first — June 2026.', evidence:'Costing & variance analysis. Found that CIMA-style variance drills online line up well with the PM syllabus.', left:'40px', top:'40px'},
+    {id:'n2', tag:1, title:'Taxation (TX)', content:'December 2026.', evidence:'Build on PM momentum. Local tax tables change yearly — check the current finance act before revising.', left:'380px', top:'220px'},
+    {id:'n3', tag:2, title:'Financial Reporting (FR)', content:'March 2027.', evidence:'Leans on B.Com Corporate Accounting & IFRS standards already covered.', left:'760px', top:'60px'},
+    {id:'n4', tag:3, title:'Audit & Assurance (AA)', content:'June 2027.', evidence:'Internal controls, planning, professional scepticism — pairs well with FR knowledge.', left:'120px', top:'480px'},
+    {id:'n5', tag:4, title:'EPSM module', content:'Milestone before SBL.', evidence:'Finish by Nov 2027. Lifts pass rates for the Strategic level.', left:'560px', top:'520px'}
+  ];
+
+  let store = {
+    notes: [], reminders: [], checked: {}, nodes: null,
+    chapters: {}, hours: []
+  };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) store = Object.assign(store, JSON.parse(raw));
+  } catch(e) {}
+  if (!store.nodes) store.nodes = JSON.parse(JSON.stringify(defaultNodes));
+
+  function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }catch(e){} }
+  function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  /* ---- Tabs ---- */
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('section-'+tab.dataset.target).classList.add('active');
+      if (tab.dataset.target === 'board') setTimeout(resizeCanvas, 50);
+    });
+  });
+
+  document.getElementById('board-legend').innerHTML = TAGS.map(t=>
+    '<span><i style="background:'+t.pin+';"></i>'+t.name+'</span>'
+  ).join('');
+
+  /* ---- Board ---- */
+  const canvas = document.getElementById('thread-canvas');
+  const ctx = canvas.getContext('2d');
+  const board = document.getElementById('board');
+  const layer = document.getElementById('nodes-layer');
+  let nextIdNum = store.nodes.length + 1;
+
+  function renderNodes(){
+    layer.innerHTML = '';
+    store.nodes.forEach(n=>{
+      if (n.evidence === undefined) n.evidence = '';
+      const tag = TAGS[n.tag % TAGS.length];
+      const el = document.createElement('div');
+      el.className = 'node';
+      el.id = n.id;
+      el.style.left = n.left; el.style.top = n.top;
+      el.innerHTML =
+        '<div class="pin" style="background:'+tag.pin+';"></div>' +
+        '<div class="node-top">' +
+          '<span class="node-tag" style="background:'+tag.bg+'; color:'+tag.ink+';">'+tag.name+'</span>' +
+          '<button class="node-x" data-id="'+n.id+'" title="Remove pin">✕</button>' +
+        '</div>' +
+        '<div class="node-title" contenteditable="true" spellcheck="false">'+escapeHtml(n.title)+'</div>' +
+        '<div class="node-content" contenteditable="true" spellcheck="false">'+escapeHtml(n.content)+'</div>' +
+        '<div class="node-label">What I learned / researched</div>' +
+        '<div class="node-evidence" contenteditable="true" spellcheck="false">'+escapeHtml(n.evidence)+'</div>';
+      layer.appendChild(el);
+      makeDraggable(el, n);
+      el.querySelector('.node-title').addEventListener('blur', e=>{ n.title = e.target.textContent.trim() || 'Untitled'; persist(); renderSummary(); });
+      el.querySelector('.node-content').addEventListener('blur', e=>{ n.content = e.target.textContent.trim(); persist(); renderSummary(); });
+      el.querySelector('.node-evidence').addEventListener('blur', e=>{ n.evidence = e.target.textContent.trim(); persist(); renderSummary(); });
+      el.querySelector('.node-x').addEventListener('click', ()=>{
+        store.nodes = store.nodes.filter(x=>x.id!==n.id);
+        persist(); renderNodes(); renderSummary();
+      });
+    });
+    setTimeout(resizeCanvas, 20);
+  }
+
+  function makeDraggable(node, dataRef){
+    let dragging=false, offX=0, offY=0;
+    node.addEventListener('mousedown', e=>{
+      if (e.target.closest('[contenteditable]') || e.target.closest('.node-x')) return;
+      dragging=true; offX = e.clientX - node.offsetLeft; offY = e.clientY - node.offsetTop;
+    });
+    node.addEventListener('touchstart', e=>{
+      if (e.target.closest('[contenteditable]') || e.target.closest('.node-x')) return;
+      const t=e.touches[0]; dragging=true; offX=t.clientX-node.offsetLeft; offY=t.clientY-node.offsetTop;
+    }, {passive:true});
+    document.addEventListener('mousemove', e=>{ if(dragging) move(e.clientX, e.clientY); });
+    document.addEventListener('touchmove', e=>{ if(dragging){ const t=e.touches[0]; move(t.clientX,t.clientY);} }, {passive:true});
+    function move(cx,cy){
+      let x = cx-offX, y = cy-offY;
+      x = Math.max(0, Math.min(x, board.clientWidth - node.clientWidth));
+      y = Math.max(0, Math.min(y, board.clientHeight - node.clientHeight));
+      node.style.left = x+'px'; node.style.top = y+'px';
+      drawThreads();
+    }
+    function stop(){
+      if(!dragging) return;
+      dragging=false;
+      dataRef.left = node.style.left; dataRef.top = node.style.top;
+      persist();
+    }
+    document.addEventListener('mouseup', stop);
+    document.addEventListener('touchend', stop);
+  }
+
+  function resizeCanvas(){
+    canvas.width = board.clientWidth;
+    canvas.height = board.clientHeight;
+    drawThreads();
+  }
+  function drawThreads(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const els = store.nodes.map(n=>document.getElementById(n.id)).filter(Boolean);
+    ctx.strokeStyle = '#E8555A';
+    ctx.lineWidth = 2.4;
+    ctx.shadowBlur = 3;
+    ctx.shadowColor = '#E8555A';
+    for (let i=0;i<els.length-1;i++){
+      const r1 = els[i].getBoundingClientRect(), r2 = els[i+1].getBoundingClientRect();
+      const b = board.getBoundingClientRect();
+      const x1 = r1.left + r1.width/2 - b.left, y1 = r1.top - b.top;
+      const x2 = r2.left + r2.width/2 - b.left, y2 = r2.top - b.top;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function addNode(){
+    const id = 'n' + (nextIdNum++);
+    const n = {
+      id, tag: store.nodes.length % TAGS.length,
+      title: 'New pin', content: 'Tap to edit this note...', evidence: 'Tap to add what you learned or researched...',
+      left: (40 + (store.nodes.length * 40) % 1200) + 'px',
+      top: (40 + (store.nodes.length * 60) % 600) + 'px'
+    };
+    store.nodes.push(n);
+    persist(); renderNodes(); renderSummary();
+  }
+
+  function resetPositions(){
+    store.nodes = store.nodes.map((n,i)=>{
+      const d = defaultNodes[i];
+      return d ? Object.assign({}, n, {left:d.left, top:d.top}) : n;
+    });
+    persist(); renderNodes();
+  }
+
+  /* ---- Summary ---- */
+  function renderSummary(){
+    const list = document.getElementById('summary-list');
+    if (store.nodes.length === 0){
+      list.innerHTML = '<div class="empty">Nothing pinned yet — add a pin on the vision board.</div>';
+    } else {
+      list.innerHTML = store.nodes.map(n=>{
+        const tag = TAGS[n.tag % TAGS.length];
+        const ev = n.evidence ? '<span class="ev">'+escapeHtml(n.evidence)+'</span>' : '';
+        return '<div class="summary-item"><b>'+escapeHtml(n.title)+'</b> <span style="color:'+tag.ink+'; font-weight:700; font-size:0.72rem;">· '+tag.name+'</span><br>'+escapeHtml(n.content)+ev+'</div>';
+      }).join('');
+    }
+    const doneCount = document.querySelectorAll('.paper-check:checked').length;
+    document.getElementById('summary-stats').innerHTML =
+      '<div class="stat"><div class="n">'+store.nodes.length+'</div><div class="l">Pins on board</div></div>' +
+      '<div class="stat"><div class="n">'+doneCount+'/5</div><div class="l">Papers done</div></div>' +
+      '<div class="stat"><div class="n">'+store.notes.length+'</div><div class="l">Notes saved</div></div>';
+  }
+
+  /* ---- Tracker: checkboxes ---- */
+  const checks = document.querySelectorAll('.paper-check');
+  checks.forEach(cb=>{
+    const id = cb.closest('tr').dataset.id;
+    cb.checked = !!store.checked[id];
+    updateRow(cb);
+    cb.addEventListener('change', ()=>{
+      store.checked[id] = cb.checked;
+      persist(); updateRow(cb); updateProgress(); renderSummary();
+    });
+  });
+  function updateRow(cb){ cb.closest('tr').classList.toggle('done', cb.checked); }
+  function updateProgress(){
+    const done = document.querySelectorAll('.paper-check:checked').length;
+    const pct = Math.round((done/checks.length)*100);
+    document.getElementById('progress-fill').style.width = pct+'%';
+    document.getElementById('progress-label').textContent = done+' of '+checks.length+' papers complete ('+pct+'%)';
+  }
+  updateProgress();
+
+  /* ---- Tracker: chapters ---- */
+  document.querySelectorAll('.chap-cell').forEach(cell=>{
+    const id = cell.closest('tr').dataset.id;
+    const total = parseInt(cell.dataset.total);
+    if (!store.chapters[id]) store.chapters[id] = {done:0, total:total};
+    const c = store.chapters[id];
+    cell.innerHTML =
+      '<div class="chap-inputs"><input type="number" class="chap-done" min="0" value="'+c.done+'"> / <input type="number" class="chap-total" min="1" value="'+c.total+'"></div>' +
+      '<div class="mini-bar"><div class="mini-fill" style="width:'+Math.min(100, Math.round((c.done/c.total)*100))+'%;"></div></div>';
+    const doneInput = cell.querySelector('.chap-done');
+    const totalInput = cell.querySelector('.chap-total');
+    function update(){
+      c.done = Math.max(0, parseInt(doneInput.value)||0);
+      c.total = Math.max(1, parseInt(totalInput.value)||1);
+      cell.querySelector('.mini-fill').style.width = Math.min(100, Math.round((c.done/c.total)*100))+'%';
+      persist();
+    }
+    doneInput.addEventListener('change', update);
+    totalInput.addEventListener('change', update);
+  });
+
+  /* ---- Study hours ---- */
+  const hoursDateInput = document.getElementById('hours-date');
+  hoursDateInput.value = new Date().toISOString().slice(0,10);
+
+  function addHours(){
+    const date = hoursDateInput.value;
+    const val = parseFloat(document.getElementById('hours-input').value);
+    if (!date || !val || val <= 0) return;
+    store.hours.push({date, hours: val});
+    persist();
+    document.getElementById('hours-input').value = '';
+    renderHours();
+  }
+
+  function renderHours(){
+    const list = document.getElementById('hours-list');
+    const sorted = store.hours.slice().sort((a,b)=> b.date.localeCompare(a.date));
+    if (sorted.length === 0){
+      list.innerHTML = '<div class="empty">No study hours logged yet.</div>';
+    } else {
+      list.innerHTML = sorted.map((h)=>{
+        const realIdx = store.hours.indexOf(h);
+        return '<div class="hours-item"><span>'+h.date+'</span><b>'+h.hours+'h</b><button class="del" data-idx="'+realIdx+'">✕</button></div>';
+      }).join('');
+      list.querySelectorAll('.del').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          store.hours.splice(parseInt(btn.dataset.idx),1);
+          persist(); renderHours();
+        });
+      });
+    }
+
+    const total = store.hours.reduce((s,h)=>s+h.hours,0);
+    const today = new Date().toISOString().slice(0,10);
+    const todayHours = store.hours.filter(h=>h.date===today).reduce((s,h)=>s+h.hours,0);
+    document.getElementById('hours-stats').innerHTML =
+      '<div class="stat"><div class="n">'+todayHours+'h</div><div class="l">Today</div></div>' +
+      '<div class="stat"><div class="n">'+total.toFixed(1)+'h</div><div class="l">Total logged</div></div>' +
+      '<div class="stat"><div class="n">'+store.hours.length+'</div><div class="l">Sessions</div></div>';
+
+    // last 7 days bar view
+    const days = [];
+    for (let i=6;i>=0;i--){
+      const d = new Date();
+      d.setDate(d.getDate()-i);
+      days.push(d.toISOString().slice(0,10));
+    }
+    const byDay = {};
+    store.hours.forEach(h=>{ byDay[h.date] = (byDay[h.date]||0) + h.hours; });
+    const maxH = Math.max(1, ...days.map(d=>byDay[d]||0));
+    document.getElementById('week-bars').innerHTML = days.map(d=>{
+      const h = byDay[d]||0;
+      const pct = Math.round((h/maxH)*100);
+      const lbl = new Date(d+'T00:00:00').toLocaleDateString(undefined,{weekday:'short'});
+      return '<div class="week-bar"><div class="bar" style="height:'+Math.max(3,pct)+'%;"></div><div class="lbl">'+lbl+'</div><div class="lbl">'+(h||'')+'</div></div>';
+    }).join('');
+  }
+
+  /* ---- Notes ---- */
+  function renderNotes(){
+    const list = document.getElementById('notes-list');
+    list.innerHTML = '';
+    if (store.notes.length === 0){ list.innerHTML = '<div class="empty">No notes yet.</div>'; return; }
+    store.notes.slice().reverse().forEach((val, revIdx)=>{
+      const idx = store.notes.length - 1 - revIdx;
+      const item = document.createElement('div');
+      item.className = 'note-item';
+      const isUrl = /^https?:\/\//.test(val);
+      item.innerHTML = (isUrl ? '🔗 <a href="'+val+'" target="_blank" rel="noopener">'+val+'</a>' : '📝 <span>'+escapeHtml(val)+'</span>') +
+        '<button class="del" data-idx="'+idx+'">✕</button>';
+      list.appendChild(item);
+    });
+    list.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        store.notes.splice(parseInt(btn.dataset.idx),1);
+        persist(); renderNotes(); renderSummary();
+      });
+    });
+  }
+  function addNote(){
+    const input = document.getElementById('note-input');
+    const val = input.value.trim();
+    if(!val) return;
+    store.notes.push(val); persist(); input.value=''; renderNotes(); renderSummary();
+  }
+  document.getElementById('note-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addNote(); });
+
+  /* ---- Reminders ---- */
+  function renderReminders(){
+    const list = document.getElementById('reminders-list');
+    list.innerHTML = '';
+    if (store.reminders.length === 0){ list.innerHTML = '<div class="empty">No reminders yet.</div>'; return; }
+    store.reminders.slice().reverse().forEach((r, revIdx)=>{
+      const idx = store.reminders.length - 1 - revIdx;
+      const item = document.createElement('div');
+      item.className = 'reminder-item';
+      item.innerHTML = '<input type="checkbox" '+(r.done?'checked':'')+' data-idx="'+idx+'" class="rem-check">' +
+        '<span style="'+(r.done?'text-decoration:line-through; opacity:0.5;':'')+'">'+escapeHtml(r.text)+'</span>' +
+        '<button class="del" data-idx="'+idx+'">✕</button>';
+      list.appendChild(item);
+    });
+    list.querySelectorAll('.rem-check').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        store.reminders[parseInt(cb.dataset.idx)].done = cb.checked;
+        persist(); renderReminders();
+      });
+    });
+    list.querySelectorAll('.del').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        store.reminders.splice(parseInt(btn.dataset.idx),1);
+        persist(); renderReminders();
+      });
+    });
+  }
+  function addReminder(){
+    const input = document.getElementById('reminder-input');
+    const val = input.value.trim();
+    if(!val) return;
+    store.reminders.push({text: val, done:false}); persist(); input.value=''; renderReminders();
+  }
+  document.getElementById('reminder-input').addEventListener('keydown', e=>{ if(e.key==='Enter') addReminder(); });
+
+  renderNodes();
+  renderNotes();
+  renderReminders();
+  renderSummary();
+  renderHours();
+</script>
+
+</body>
+</html>
